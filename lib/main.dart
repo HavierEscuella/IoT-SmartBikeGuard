@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:smart_bike_guard/features/auth/presentation/screens/login_screen.dart';
+import 'package:smart_bike_guard/features/profile/presentation/screens/profile_settings_screen.dart';
 
 void main() {
   runApp(const SmartBikeGuardApp());
@@ -20,13 +22,97 @@ class SmartBikeGuardApp extends StatelessWidget {
           surface: Color(0xFF1E202C),
         ),
       ),
-      home: const AlarmKeychainScreen(),
+      home: const AppRouter(),
+    );
+  }
+}
+
+class AppRouter extends StatefulWidget {
+  const AppRouter({super.key});
+
+  @override
+  State<AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends State<AppRouter> {
+  bool _isLoggedIn = false;
+
+  // Глобальний стан профілю та пристрою для лаби 2 & 4
+  String _ownerName = 'Денис';
+  String _ownerPhone = '+380 97 123 4567';
+  String _bikeName = 'Specialized Turbo';
+  String _bikeType = 'Велосипед';
+  String _serialNumber = 'SN-789-2026';
+  double _sensitivity = 0.75;
+
+  void _handleLoginSuccess() {
+    setState(() {
+      _isLoggedIn = true;
+    });
+  }
+
+  void _handleSettingsSave(
+    String name,
+    String phone,
+    String bikeName,
+    String bikeType,
+    String serial,
+    double sensitivity,
+  ) {
+    setState(() {
+      _ownerName = name;
+      _ownerPhone = phone;
+      _bikeName = bikeName;
+      _bikeType = bikeType;
+      _serialNumber = serial;
+      _sensitivity = sensitivity;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isLoggedIn) {
+      return LoginScreen(onLoginSuccess: _handleLoginSuccess);
+    }
+
+    return AlarmKeychainScreen(
+      ownerName: _ownerName,
+      ownerPhone: _ownerPhone,
+      bikeName: _bikeName,
+      bikeType: _bikeType,
+      serialNumber: _serialNumber,
+      sensitivity: _sensitivity,
+      onSaveSettings: _handleSettingsSave,
     );
   }
 }
 
 class AlarmKeychainScreen extends StatefulWidget {
-  const AlarmKeychainScreen({super.key});
+  final String ownerName;
+  final String ownerPhone;
+  final String bikeName;
+  final String bikeType;
+  final String serialNumber;
+  final double sensitivity;
+  final void Function(
+    String name,
+    String phone,
+    String bikeName,
+    String bikeType,
+    String serial,
+    double sensitivity,
+  ) onSaveSettings;
+
+  const AlarmKeychainScreen({
+    required this.ownerName,
+    required this.ownerPhone,
+    required this.bikeName,
+    required this.bikeType,
+    required this.serialNumber,
+    required this.sensitivity,
+    required this.onSaveSettings,
+    super.key,
+  });
 
   @override
   State<AlarmKeychainScreen> createState() => _AlarmKeychainScreenState();
@@ -96,6 +182,31 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.bikeName),
+        backgroundColor: const Color(0xFF1E202C),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => ProfileSettingsScreen(
+                    currentName: widget.ownerName,
+                    currentPhone: widget.ownerPhone,
+                    currentBikeName: widget.bikeName,
+                    currentBikeType: widget.bikeType,
+                    currentSerial: widget.serialNumber,
+                    currentSensitivity: widget.sensitivity,
+                    onSave: widget.onSaveSettings,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -108,12 +219,11 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'IoT Bike Guard',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
+                  Text(
+                    'Власник: ${widget.ownerName}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
                     ),
                   ),
                   Container(
@@ -146,8 +256,8 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
-                    width: 200,
-                    height: 200,
+                    width: 180,
+                    height: 180,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: const Color(0xFF1E202C),
@@ -170,7 +280,7 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
                             : (_isArmed
                                 ? Icons.shield
                                 : Icons.shield_outlined),
-                        size: 80,
+                        size: 70,
                         color: activeColor,
                       ),
                     ),
@@ -181,7 +291,7 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
                         ? '🔥 УВАГА: ВИКРАДЕННЯ!'
                         : (_isArmed ? 'РЕЖИМ ОХОРОНИ' : 'БЕЗПЕЧНИЙ РЕЖИМ'),
                     style: TextStyle(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: activeColor,
                       letterSpacing: 1.5,
@@ -189,10 +299,19 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
+                    'Тип: ${widget.bikeType} | Чутливість: '
+                    '${(widget.sensitivity * 100).toInt()}%',
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
                     'Тривог зафіксовано: $_alertCount',
                     style: const TextStyle(
                       color: Colors.grey,
-                      fontSize: 14,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -210,7 +329,7 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
                       _statusMessage,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         height: 1.4,
                       ),
                     ),
