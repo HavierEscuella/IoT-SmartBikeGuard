@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smart_bike_guard/features/auth/presentation/screens/login_screen.dart';
+import 'package:smart_bike_guard/features/profile/data/services/bike_api_service.dart';
 import 'package:smart_bike_guard/features/profile/presentation/screens/profile_settings_screen.dart';
 
 void main() {
@@ -35,15 +36,49 @@ class AppRouter extends StatefulWidget {
 }
 
 class _AppRouterState extends State<AppRouter> {
+  final BikeApiService _apiService = BikeApiService();
   bool _isLoggedIn = false;
+  bool _isLoading = true;
+  String _errorMessage = '';
 
-  // Глобальний стан профілю та пристрою для лаби 2 & 4
-  String _ownerName = 'Денис';
-  String _ownerPhone = '+380 97 123 4567';
-  String _bikeName = 'Specialized Turbo';
-  String _bikeType = 'Велосипед';
-  String _serialNumber = 'SN-789-2026';
-  double _sensitivity = 0.75;
+  // Стан пристрою та власника з REST API
+  String _ownerName = '';
+  String _ownerPhone = '';
+  String _bikeName = '';
+  String _bikeType = '';
+  String _serialNumber = '';
+  double _sensitivity = 0.5;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      final data = await _apiService.fetchBikeData();
+      setState(() {
+        _ownerName = data['ownerName'] as String? ?? 'Власник';
+        _ownerPhone = data['ownerPhone'] as String? ?? '';
+        _bikeName = data['bikeName'] as String? ?? 'Байк';
+        _bikeType = data['bikeType'] as String? ?? 'Велосипед';
+        _serialNumber = data['serialNumber'] as String? ?? '';
+        _sensitivity = (data['sensitivity'] as num? ?? 0.5).toDouble();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
 
   void _handleLoginSuccess() {
     setState(() {
@@ -51,26 +86,104 @@ class _AppRouterState extends State<AppRouter> {
     });
   }
 
-  void _handleSettingsSave(
+  Future<void> _handleSettingsSave(
     String name,
     String phone,
     String bikeName,
     String bikeType,
     String serial,
     double sensitivity,
-  ) {
-    setState(() {
-      _ownerName = name;
-      _ownerPhone = phone;
-      _bikeName = bikeName;
-      _bikeType = bikeType;
-      _serialNumber = serial;
-      _sensitivity = sensitivity;
-    });
+  ) async {
+    final updatedData = {
+      'ownerName': name,
+      'ownerPhone': phone,
+      'bikeName': bikeName,
+      'bikeType': bikeType,
+      'serialNumber': serial,
+      'sensitivity': sensitivity,
+    };
+
+    try {
+      final success = await _apiService.updateBikeData(updatedData);
+      if (success) {
+        setState(() {
+          _ownerName = name;
+          _ownerPhone = phone;
+          _bikeName = bikeName;
+          _bikeType = bikeType;
+          _serialNumber = serial;
+          _sensitivity = sensitivity;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Помилка синхронізації: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                color: Color(0xFF00E676),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Завантаження даних з сервера...',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage.isNotEmpty) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.wifi_off_outlined,
+                  size: 64,
+                  color: Colors.red,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _loadInitialData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00E676),
+                    foregroundColor: Colors.black,
+                  ),
+                  child: const Text('Спробувати знову'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (!_isLoggedIn) {
       return LoginScreen(onLoginSuccess: _handleLoginSuccess);
     }
@@ -83,6 +196,7 @@ class _AppRouterState extends State<AppRouter> {
       serialNumber: _serialNumber,
       sensitivity: _sensitivity,
       onSaveSettings: _handleSettingsSave,
+      apiService: _apiService,
     );
   }
 }
@@ -102,6 +216,7 @@ class AlarmKeychainScreen extends StatefulWidget {
     String serial,
     double sensitivity,
   ) onSaveSettings;
+  final BikeApiService apiService;
 
   const AlarmKeychainScreen({
     required this.ownerName,
@@ -111,6 +226,7 @@ class AlarmKeychainScreen extends StatefulWidget {
     required this.serialNumber,
     required this.sensitivity,
     required this.onSaveSettings,
+    required this.apiService,
     super.key,
   });
 
@@ -126,43 +242,71 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
   int _alertCount = 0;
   String _statusMessage = 'Система готова. Очікування команди...';
 
-  void _processCommand(String text) {
+  void _processCommand(String text) async {
     final cleanText = text.trim().toUpperCase();
 
-    setState(() {
-      if (cleanText == '1234' || cleanText == 'ARM') {
+    if (cleanText == '1234' || cleanText == 'ARM') {
+      setState(() {
         _isArmed = true;
         _hasAlarmTriggered = false;
         _statusMessage =
             '🛡️ ОХОРОНА АКТИВОВАНА. Велосипед під захистом.';
-      } else if (cleanText == 'DISARM') {
+      });
+    } else if (cleanText == 'DISARM') {
+      setState(() {
         _isArmed = false;
         _hasAlarmTriggered = false;
         _statusMessage = '🔓 ЗНЯТО З ОХОРОНИ. Вільний рух дозволено.';
-      } else if (cleanText == 'SOS' || cleanText == 'AVADA KEDAVRA') {
+      });
+    } else if (cleanText == 'SOS' || cleanText == 'AVADA KEDAVRA') {
+      setState(() {
         _isArmed = false;
         _hasAlarmTriggered = false;
         _alertCount = 0;
         _statusMessage =
             '⚡ Систему перезавантажено (Екстрене скидання).';
-      } else {
-        final parsedValue = int.tryParse(cleanText);
-        if (parsedValue != null) {
-          if (_isArmed) {
+      });
+    } else {
+      final parsedValue = int.tryParse(cleanText);
+      if (parsedValue != null) {
+        if (_isArmed) {
+          setState(() {
             _hasAlarmTriggered = true;
             _alertCount += parsedValue;
             _statusMessage =
-                '🚨 ТРИВОГА! Рух силою $parsedValue G!';
-          } else {
-            _statusMessage =
-                'ℹ️ Поштовх $parsedValue G (Охорона вимкнена).';
+                '🚨 ТРИВОГА! Рух силою $parsedValue G. Надіслано SOS...';
+          });
+
+          // Асинхронно повідомляємо REST API сервер про спрацювання тривоги
+          try {
+            final ok = await widget.apiService.reportSosAlarm(parsedValue);
+            if (ok && mounted) {
+              setState(() {
+                _statusMessage = '🚨 ТРИВОГА! Рух силою $parsedValue G!\n'
+                    '📲 REST API: Сигнал SOS успішно доставлено!';
+              });
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() {
+                _statusMessage = '🚨 ТРИВОГА! Рух силою $parsedValue G!\n'
+                    '⚠️ REST API: Помилка передачі сигналу тривоги!';
+              });
+            }
           }
         } else {
+          setState(() {
+            _statusMessage =
+                'ℹ️ Поштовх $parsedValue G (Охорона вимкнена).';
+          });
+        }
+      } else {
+        setState(() {
           _statusMessage =
               '❌ Невідома команда. Дозволені: ARM, DISARM, SOS або Число.';
-        }
+        });
       }
-    });
+    }
     _codeController.clear();
   }
 
