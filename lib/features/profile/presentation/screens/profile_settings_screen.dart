@@ -1,26 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:smart_bike_guard/core/models/bike_data.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:smart_bike_guard/core/cubit/app_cubit.dart';
+import 'package:smart_bike_guard/core/cubit/app_state.dart';
 import 'package:smart_bike_guard/features/profile/data/services/bike_api_service.dart';
 import 'package:smart_bike_guard/features/profile/data/services/local_storage_service.dart';
+import 'package:smart_bike_guard/features/profile/presentation/cubit/profile_cubit.dart';
+import 'package:smart_bike_guard/features/profile/presentation/cubit/profile_state.dart';
 import 'package:smart_bike_guard/features/profile/presentation/widgets/profile_form.dart';
 
-class ProfileSettingsScreen extends StatefulWidget {
-  final BikeData currentData;
-  final BikeApiService apiService;
-  final LocalStorageService localStorage;
-
-  const ProfileSettingsScreen({
-    required this.currentData,
-    required this.apiService,
-    required this.localStorage,
-    super.key,
-  });
+class ProfileSettingsScreen extends StatelessWidget {
+  const ProfileSettingsScreen({super.key});
 
   @override
-  State<ProfileSettingsScreen> createState() => _ProfileSettingsScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => ProfileCubit(
+        apiService: context.read<BikeApiService>(),
+        localStorage: context.read<LocalStorageService>(),
+        appCubit: context.read<AppCubit>(),
+      ),
+      child: const _ProfileSettingsView(),
+    );
+  }
 }
 
-class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
+class _ProfileSettingsView extends StatefulWidget {
+  const _ProfileSettingsView();
+
+  @override
+  State<_ProfileSettingsView> createState() => _ProfileSettingsViewState();
+}
+
+class _ProfileSettingsViewState extends State<_ProfileSettingsView> {
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _ownerNameCtrl;
@@ -29,19 +40,27 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   late TextEditingController _bikeTypeCtrl;
   late TextEditingController _serialCtrl;
   late double _sensitivity;
-  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _ownerNameCtrl = TextEditingController(text: widget.currentData.ownerName);
-    _ownerPhoneCtrl = TextEditingController(
-      text: widget.currentData.ownerPhone,
-    );
-    _bikeNameCtrl = TextEditingController(text: widget.currentData.bikeName);
-    _bikeTypeCtrl = TextEditingController(text: widget.currentData.bikeType);
-    _serialCtrl = TextEditingController(text: widget.currentData.serialNumber);
-    _sensitivity = widget.currentData.sensitivity;
+    final appState = context.read<AppCubit>().state;
+    if (appState is AppLoaded) {
+      final data = appState.data;
+      _ownerNameCtrl = TextEditingController(text: data.ownerName);
+      _ownerPhoneCtrl = TextEditingController(text: data.ownerPhone);
+      _bikeNameCtrl = TextEditingController(text: data.bikeName);
+      _bikeTypeCtrl = TextEditingController(text: data.bikeType);
+      _serialCtrl = TextEditingController(text: data.serialNumber);
+      _sensitivity = data.sensitivity;
+    } else {
+      _ownerNameCtrl = TextEditingController();
+      _ownerPhoneCtrl = TextEditingController();
+      _bikeNameCtrl = TextEditingController();
+      _bikeTypeCtrl = TextEditingController();
+      _serialCtrl = TextEditingController();
+      _sensitivity = 0.5;
+    }
   }
 
   @override
@@ -54,11 +73,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     super.dispose();
   }
 
-  Future<void> _saveSettings() async {
+  void _onSave(BuildContext context) {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isSaving = true);
 
-    final updatedData = widget.currentData.copyWith(
+    final appState = context.read<AppCubit>().state;
+    if (appState is! AppLoaded) return;
+
+    final updatedData = appState.data.copyWith(
       ownerName: _ownerNameCtrl.text,
       ownerPhone: _ownerPhoneCtrl.text,
       bikeName: _bikeNameCtrl.text,
@@ -67,62 +88,53 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       sensitivity: _sensitivity,
     );
 
-    final mapData = {
-      'ownerName': updatedData.ownerName,
-      'ownerPhone': updatedData.ownerPhone,
-      'bikeName': updatedData.bikeName,
-      'bikeType': updatedData.bikeType,
-      'serialNumber': updatedData.serialNumber,
-      'sensitivity': updatedData.sensitivity,
-    };
-
-    try {
-      await widget.localStorage.saveBikeData(mapData);
-    } catch (_) {}
-
-    try {
-      await widget.apiService.updateBikeData(mapData);
-      if (mounted) {
-        _showSnackBar('🛡️ Успішно збережено!', const Color(0xFF00E676));
-      }
-    } catch (_) {
-      if (mounted) {
-        _showSnackBar('⚠️ Локальне збереження.', Colors.orangeAccent);
-      }
-    }
-
-    if (mounted) {
-      setState(() => _isSaving = false);
-      Navigator.pop(context, updatedData);
-    }
-  }
-
-  void _showSnackBar(String msg, Color color) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+    context.read<ProfileCubit>().saveSettings(updatedData);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Налаштування профілю'),
-        backgroundColor: const Color(0xFF1E202C),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ProfileForm(
-          formKey: _formKey,
-          ownerNameCtrl: _ownerNameCtrl,
-          ownerPhoneCtrl: _ownerPhoneCtrl,
-          bikeNameCtrl: _bikeNameCtrl,
-          bikeTypeCtrl: _bikeTypeCtrl,
-          serialCtrl: _serialCtrl,
-          sensitivity: _sensitivity,
-          onSensitivityChanged: (val) => setState(() => _sensitivity = val),
-          isSaving: _isSaving,
-          onSave: _saveSettings,
+    return BlocListener<ProfileCubit, ProfileState>(
+      listener: (context, state) {
+        if (state is ProfileSaved) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                state.isOffline
+                    ? '⚠️ Локальне збереження.'
+                    : '🛡️ Успішно збережено!',
+              ),
+              backgroundColor: state.isOffline
+                  ? Colors.orangeAccent
+                  : const Color(0xFF00E676),
+            ),
+          );
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Налаштування профілю'),
+          backgroundColor: const Color(0xFF1E202C),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: BlocBuilder<ProfileCubit, ProfileState>(
+            builder: (context, state) {
+              return ProfileForm(
+                formKey: _formKey,
+                ownerNameCtrl: _ownerNameCtrl,
+                ownerPhoneCtrl: _ownerPhoneCtrl,
+                bikeNameCtrl: _bikeNameCtrl,
+                bikeTypeCtrl: _bikeTypeCtrl,
+                serialCtrl: _serialCtrl,
+                sensitivity: _sensitivity,
+                onSensitivityChanged: (val) =>
+                    setState(() => _sensitivity = val),
+                isSaving: state is ProfileSaving,
+                onSave: () => _onSave(context),
+              );
+            },
+          ),
         ),
       ),
     );
