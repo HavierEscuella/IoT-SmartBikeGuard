@@ -64,16 +64,16 @@ class BikeApiService {
     }
 
     try {
-      final response = await _client.post(
-        Uri.parse('${ApiConfig.baseUrl}/alarm/sos'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'intensity': intensity,
-          'time': DateTime.now().toIso8601String(),
-        }),
-      ).timeout(const Duration(
-        milliseconds: ApiConfig.connectTimeoutMs,
-      ));
+      final response = await _client
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/alarm/sos'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'intensity': intensity,
+              'time': DateTime.now().toIso8601String(),
+            }),
+          )
+          .timeout(const Duration(milliseconds: ApiConfig.connectTimeoutMs));
 
       return response.statusCode == 200;
     } catch (e) {
