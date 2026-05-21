@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smart_bike_guard/features/auth/presentation/screens/login_screen.dart';
 import 'package:smart_bike_guard/features/profile/data/services/bike_api_service.dart';
+import 'package:smart_bike_guard/features/profile/data/services/local_storage_service.dart';
 import 'package:smart_bike_guard/features/profile/presentation/screens/profile_settings_screen.dart';
 
 void main() {
@@ -37,17 +38,21 @@ class AppRouter extends StatefulWidget {
 
 class _AppRouterState extends State<AppRouter> {
   final BikeApiService _apiService = BikeApiService();
+  final LocalStorageService _localStorage = LocalStorageService();
+
   bool _isLoggedIn = false;
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _isOfflineMode = false;
 
-  // Стан пристрою та власника з REST API
+  // Стан профілю та байка (Offline First)
   String _ownerName = '';
   String _ownerPhone = '';
   String _bikeName = '';
   String _bikeType = '';
   String _serialNumber = '';
   double _sensitivity = 0.5;
+  int _alertCount = 0;
 
   @override
   void initState() {
@@ -59,25 +64,74 @@ class _AppRouterState extends State<AppRouter> {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
+      _isOfflineMode = false;
     });
 
+    // 1. Спершу намагаємось зчитати локальний кеш для швидкого рендеру
     try {
-      final data = await _apiService.fetchBikeData();
+      final cached = await _localStorage.getBikeData();
+      final cachedAlerts = await _localStorage.getAlertCount();
+      if (cached != null) {
+        setState(() {
+          _ownerName = cached['ownerName'] as String;
+          _ownerPhone = cached['ownerPhone'] as String;
+          _bikeName = cached['bikeName'] as String;
+          _bikeType = cached['bikeType'] as String;
+          _serialNumber = cached['serialNumber'] as String;
+          _sensitivity = cached['sensitivity'] as double;
+          _alertCount = cachedAlerts;
+          _isLoading = false; // Миттєво прибираємо лоадер!
+        });
+      }
+    } catch (_) {
+      // Ігноруємо помилки читання кешу
+    }
+
+    // 2. Робимо запит до мережі для синхронізації даних з сервером
+    try {
+      final serverData = await _apiService.fetchBikeData();
+      // Зберігаємо отримані дані у локальний кеш
+      await _localStorage.saveBikeData(serverData);
+
       setState(() {
-        _ownerName = data['ownerName'] as String? ?? 'Власник';
-        _ownerPhone = data['ownerPhone'] as String? ?? '';
-        _bikeName = data['bikeName'] as String? ?? 'Байк';
-        _bikeType = data['bikeType'] as String? ?? 'Велосипед';
-        _serialNumber = data['serialNumber'] as String? ?? '';
-        _sensitivity = (data['sensitivity'] as num? ?? 0.5).toDouble();
+        _ownerName = serverData['ownerName'] as String? ?? 'Власник';
+        _ownerPhone = serverData['ownerPhone'] as String? ?? '';
+        _bikeName = serverData['bikeName'] as String? ?? 'Байк';
+        _bikeType = serverData['bikeType'] as String? ?? 'Велосипед';
+        _serialNumber = serverData['serialNumber'] as String? ?? '';
+        _sensitivity =
+            (serverData['sensitivity'] as num? ?? 0.5).toDouble();
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-        _isLoading = false;
-      });
+      // Якщо ми офлайн, але в нас є локальний кеш, просто працюємо офлайн!
+      if (_ownerName.isNotEmpty) {
+        setState(() {
+          _isOfflineMode = true;
+          _isLoading = false;
+        });
+        _showOfflineSnackbar();
+      } else {
+        // Якщо кешу взагалі немає і ми офлайн — виводимо вікно помилки
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  void _showOfflineSnackbar() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ℹ️ Працюємо в офлайн-режимі. Дані завантажено з кешу.',
+          ),
+          backgroundColor: Colors.blueGrey,
+        ),
+      );
+    });
   }
 
   void _handleLoginSuccess() {
@@ -103,28 +157,53 @@ class _AppRouterState extends State<AppRouter> {
       'sensitivity': sensitivity,
     };
 
+    // 1. Одразу зберігаємо локально у кеш (Миментальне оновлення UI)
     try {
-      final success = await _apiService.updateBikeData(updatedData);
-      if (success) {
-        setState(() {
-          _ownerName = name;
-          _ownerPhone = phone;
-          _bikeName = bikeName;
-          _bikeType = bikeType;
-          _serialNumber = serial;
-          _sensitivity = sensitivity;
-        });
-      }
-    } catch (e) {
+      await _localStorage.saveBikeData(updatedData);
+      setState(() {
+        _ownerName = name;
+        _ownerPhone = phone;
+        _bikeName = bikeName;
+        _bikeType = bikeType;
+        _serialNumber = serial;
+        _sensitivity = sensitivity;
+      });
+    } catch (_) {}
+
+    // 2. Намагаємось відправити на сервер у фоновому режимі
+    try {
+      await _apiService.updateBikeData(updatedData);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Помилка синхронізації: $e'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text(
+              '🛡️ Налаштування успішно синхронізовано з сервером!',
+            ),
+            backgroundColor: Color(0xFF00E676),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '⚠️ Збережено локально. Не вдалося синхронізувати з сервером.',
+            ),
+            backgroundColor: Colors.orange,
           ),
         );
       }
     }
+  }
+
+  void _handleAlertTriggered(int count) async {
+    setState(() {
+      _alertCount = count;
+    });
+    try {
+      await _localStorage.saveAlertCount(count);
+    } catch (_) {}
   }
 
   @override
@@ -140,7 +219,7 @@ class _AppRouterState extends State<AppRouter> {
               ),
               SizedBox(height: 16),
               Text(
-                'Завантаження даних з сервера...',
+                'Завантаження конфігурації...',
                 style: TextStyle(color: Colors.grey),
               ),
             ],
@@ -195,7 +274,10 @@ class _AppRouterState extends State<AppRouter> {
       bikeType: _bikeType,
       serialNumber: _serialNumber,
       sensitivity: _sensitivity,
+      alertCount: _alertCount,
       onSaveSettings: _handleSettingsSave,
+      onAlertTriggered: _handleAlertTriggered,
+      isOfflineMode: _isOfflineMode,
       apiService: _apiService,
     );
   }
@@ -208,6 +290,7 @@ class AlarmKeychainScreen extends StatefulWidget {
   final String bikeType;
   final String serialNumber;
   final double sensitivity;
+  final int alertCount;
   final void Function(
     String name,
     String phone,
@@ -216,6 +299,8 @@ class AlarmKeychainScreen extends StatefulWidget {
     String serial,
     double sensitivity,
   ) onSaveSettings;
+  final void Function(int count) onAlertTriggered;
+  final bool isOfflineMode;
   final BikeApiService apiService;
 
   const AlarmKeychainScreen({
@@ -225,7 +310,10 @@ class AlarmKeychainScreen extends StatefulWidget {
     required this.bikeType,
     required this.serialNumber,
     required this.sensitivity,
+    required this.alertCount,
     required this.onSaveSettings,
+    required this.onAlertTriggered,
+    required this.isOfflineMode,
     required this.apiService,
     super.key,
   });
@@ -239,8 +327,14 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
 
   bool _isArmed = false;
   bool _hasAlarmTriggered = false;
-  int _alertCount = 0;
+  late int _localAlertCount;
   String _statusMessage = 'Система готова. Очікування команди...';
+
+  @override
+  void initState() {
+    super.initState();
+    _localAlertCount = widget.alertCount;
+  }
 
   void _processCommand(String text) async {
     final cleanText = text.trim().toUpperCase();
@@ -262,22 +356,24 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
       setState(() {
         _isArmed = false;
         _hasAlarmTriggered = false;
-        _alertCount = 0;
+        _localAlertCount = 0;
         _statusMessage =
             '⚡ Систему перезавантажено (Екстрене скидання).';
       });
+      widget.onAlertTriggered(0);
     } else {
       final parsedValue = int.tryParse(cleanText);
       if (parsedValue != null) {
         if (_isArmed) {
           setState(() {
             _hasAlarmTriggered = true;
-            _alertCount += parsedValue;
+            _localAlertCount += parsedValue;
             _statusMessage =
                 '🚨 ТРИВОГА! Рух силою $parsedValue G. Надіслано SOS...';
           });
+          widget.onAlertTriggered(_localAlertCount);
 
-          // Асинхронно повідомляємо REST API сервер про спрацювання тривоги
+          // Асинхронно повідомляємо REST API сервер
           try {
             final ok = await widget.apiService.reportSosAlarm(parsedValue);
             if (ok && mounted) {
@@ -327,7 +423,19 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.bikeName),
+        title: Row(
+          children: [
+            Text(widget.bikeName),
+            if (widget.isOfflineMode) ...[
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.cloud_off,
+                size: 16,
+                color: Colors.orange,
+              ),
+            ],
+          ],
+        ),
         backgroundColor: const Color(0xFF1E202C),
         elevation: 0,
         actions: [
@@ -452,7 +560,7 @@ class _AlarmKeychainScreenState extends State<AlarmKeychainScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Тривог зафіксовано: $_alertCount',
+                    'Тривог зафіксовано: $_localAlertCount',
                     style: const TextStyle(
                       color: Colors.grey,
                       fontSize: 13,
