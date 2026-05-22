@@ -317,6 +317,15 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  smart_bike_flashlight:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: master
+      resolved-ref: ac1fe2979b42ecb694ed27360b81c6901b337dc2
+      url: "https://github.com/HavierEscuella/smart_bike_flashlight.git"
+    source: git
+    version: "0.0.1"
   source_span:
     dependency: transitive
     description:
