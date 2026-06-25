@@ -38,7 +38,11 @@ class AppCubit extends Cubit<AppState> {
 
     if (state is AppLoaded) {
       final currentCount = (state as AppLoaded).data.alertCount;
-      await firestoreService.updateAlertCount(user.uid, currentCount + 1);
+      try {
+        await firestoreService.updateAlertCount(user.uid, currentCount + 1);
+      } catch (e) {
+        // Ігноруємо помилку (наприклад, якщо БД ще не створена)
+      }
     }
   }
 

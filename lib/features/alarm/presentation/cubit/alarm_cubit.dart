@@ -62,7 +62,8 @@ class AlarmCubit extends Cubit<AlarmState> {
     final currentApp = appCubit.state;
     if (currentApp is! AppLoaded) return;
 
-    await appCubit.incrementAlertCount();
+    // Запускаємо оновлення лічильника у фоні, не чекаючи відповіді від сервера
+    appCubit.incrementAlertCount();
 
     HapticFeedback.vibrate();
     NotificationService().showAlarmNotification(reason);
