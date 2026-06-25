@@ -1,4 +1,4 @@
-// import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:smart_bike_guard/core/cubit/app_cubit.dart';
@@ -8,15 +8,14 @@ import 'package:smart_bike_guard/core/theme/app_theme.dart';
 import 'package:smart_bike_guard/features/auth/data/services/firebase_auth_service.dart';
 import 'package:smart_bike_guard/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:smart_bike_guard/features/profile/data/services/firebase_firestore_service.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // УВАГА: Закоментовано, оскільки потрібен firebase_options.dart
-  // Згенеруйте його за допомогою: flutterfire configure
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   final notificationService = NotificationService();
   await notificationService.init();
