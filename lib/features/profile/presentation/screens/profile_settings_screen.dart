@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smart_bike_guard/core/cubit/app_cubit.dart';
 import 'package:smart_bike_guard/core/cubit/app_state.dart';
-import 'package:smart_bike_guard/features/profile/data/services/bike_api_service.dart';
-import 'package:smart_bike_guard/features/profile/data/services/local_storage_service.dart';
+import 'package:smart_bike_guard/features/auth/data/services/firebase_auth_service.dart';
+import 'package:smart_bike_guard/features/profile/data/services/firebase_firestore_service.dart';
 import 'package:smart_bike_guard/features/profile/presentation/cubit/profile_cubit.dart';
 import 'package:smart_bike_guard/features/profile/presentation/cubit/profile_state.dart';
 import 'package:smart_bike_guard/features/profile/presentation/widgets/profile_form.dart';
@@ -15,9 +16,8 @@ class ProfileSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => ProfileCubit(
-        apiService: context.read<BikeApiService>(),
-        localStorage: context.read<LocalStorageService>(),
-        appCubit: context.read<AppCubit>(),
+        firestoreService: context.read<FirebaseFirestoreService>(),
+        authService: context.read<FirebaseAuthService>(),
       ),
       child: const _ProfileSettingsView(),
     );
@@ -108,7 +108,7 @@ class _ProfileSettingsViewState extends State<_ProfileSettingsView> {
                   : const Color(0xFF00E676),
             ),
           );
-          Navigator.pop(context);
+          context.pop();
         }
       },
       child: Scaffold(
