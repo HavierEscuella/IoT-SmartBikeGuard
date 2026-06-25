@@ -51,10 +51,7 @@ GoRouter createRouter(AuthCubit authCubit) {
           onLoginSuccess: () => context.read<AuthCubit>().login(),
         ),
       ),
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const RootScreen(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const RootScreen()),
       GoRoute(
         path: '/settings',
         builder: (context, state) => const ProfileSettingsScreen(),

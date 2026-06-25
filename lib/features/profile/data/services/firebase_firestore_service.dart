@@ -5,7 +5,9 @@ class FirebaseFirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Stream<BikeData> streamBikeData(String uid) {
-    return _firestore.collection('user_bikes').doc(uid).snapshots().map((snapshot) {
+    return _firestore.collection('user_bikes').doc(uid).snapshots().map((
+      snapshot,
+    ) {
       if (snapshot.exists) {
         final data = snapshot.data()!;
         return BikeData(

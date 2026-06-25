@@ -13,8 +13,7 @@ class AlarmCubit extends Cubit<AlarmState> {
   Timer? _flashlightTimer;
   bool _isFlashlightOn = false;
 
-  AlarmCubit({required this.appCubit})
-    : super(AlarmState.initial());
+  AlarmCubit({required this.appCubit}) : super(AlarmState.initial());
 
   void handleCommand(String input, double sensitivity) {
     final command = input.trim();
@@ -80,11 +79,17 @@ class AlarmCubit extends Cubit<AlarmState> {
   void _startFlashlightBlinking() {
     _flashlightTimer?.cancel();
     _isFlashlightOn = true;
-    try { SmartBikeFlashlight.toggleTorch(_isFlashlightOn); } catch (_) {}
-    
-    _flashlightTimer = Timer.periodic(const Duration(milliseconds: 250), (timer) {
+    try {
+      SmartBikeFlashlight.toggleTorch(_isFlashlightOn);
+    } catch (_) {}
+
+    _flashlightTimer = Timer.periodic(const Duration(milliseconds: 250), (
+      timer,
+    ) {
       _isFlashlightOn = !_isFlashlightOn;
-      try { SmartBikeFlashlight.toggleTorch(_isFlashlightOn); } catch (_) {}
+      try {
+        SmartBikeFlashlight.toggleTorch(_isFlashlightOn);
+      } catch (_) {}
     });
   }
 
@@ -92,7 +97,9 @@ class AlarmCubit extends Cubit<AlarmState> {
     _flashlightTimer?.cancel();
     _flashlightTimer = null;
     _isFlashlightOn = false;
-    try { SmartBikeFlashlight.toggleTorch(false); } catch (_) {}
+    try {
+      SmartBikeFlashlight.toggleTorch(false);
+    } catch (_) {}
   }
 
   @override

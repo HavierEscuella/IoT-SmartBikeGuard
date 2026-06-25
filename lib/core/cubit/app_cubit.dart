@@ -22,14 +22,16 @@ class AppCubit extends Cubit<AppState> {
     }
 
     _bikeDataSubscription?.cancel();
-    _bikeDataSubscription = firestoreService.streamBikeData(user.uid).listen(
-      (data) {
-        emit(AppLoaded(data));
-      },
-      onError: (Object e) {
-        emit(AppError(e.toString()));
-      },
-    );
+    _bikeDataSubscription = firestoreService
+        .streamBikeData(user.uid)
+        .listen(
+          (data) {
+            emit(AppLoaded(data));
+          },
+          onError: (Object e) {
+            emit(AppError(e.toString()));
+          },
+        );
   }
 
   Future<void> incrementAlertCount() async {

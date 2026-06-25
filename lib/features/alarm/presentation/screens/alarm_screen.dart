@@ -18,9 +18,7 @@ class AlarmKeychainScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (context) => AlarmCubit(
-            appCubit: context.read<AppCubit>(),
-          ),
+          create: (context) => AlarmCubit(appCubit: context.read<AppCubit>()),
         ),
         BlocProvider(create: (_) => FlashlightCubit()),
       ],

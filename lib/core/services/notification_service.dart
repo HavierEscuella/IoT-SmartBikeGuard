@@ -13,9 +13,8 @@ class NotificationService {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-    );
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
 
     await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
@@ -25,23 +24,26 @@ class NotificationService {
   Future<void> requestPermissions() async {
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
   }
 
   Future<void> showAlarmNotification(String body) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'alarm_channel',
-      'Сигнали Тривоги',
-      channelDescription: 'Сповіщення при спрацюванні сигналізації велосипеда',
-      importance: Importance.max,
-      priority: Priority.high,
-      ticker: 'Тривога!',
-    );
+          'alarm_channel',
+          'Сигнали Тривоги',
+          channelDescription:
+              'Сповіщення при спрацюванні сигналізації велосипеда',
+          importance: Importance.max,
+          priority: Priority.high,
+          ticker: 'Тривога!',
+        );
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
 
     await flutterLocalNotificationsPlugin.show(
       id: 0,

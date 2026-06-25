@@ -8,10 +8,8 @@ class ProfileCubit extends Cubit<ProfileState> {
   final FirebaseFirestoreService firestoreService;
   final FirebaseAuthService authService;
 
-  ProfileCubit({
-    required this.firestoreService,
-    required this.authService,
-  }) : super(ProfileInitial());
+  ProfileCubit({required this.firestoreService, required this.authService})
+    : super(ProfileInitial());
 
   Future<void> saveSettings(BikeData updatedData) async {
     emit(ProfileSaving());

@@ -8,19 +8,17 @@ import 'package:smart_bike_guard/core/theme/app_theme.dart';
 import 'package:smart_bike_guard/features/auth/data/services/firebase_auth_service.dart';
 import 'package:smart_bike_guard/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:smart_bike_guard/features/profile/data/services/firebase_firestore_service.dart';
-import 'firebase_options.dart';
+import 'package:smart_bike_guard/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   final notificationService = NotificationService();
   await notificationService.init();
   await notificationService.requestPermissions();
-  
+
   runApp(const SmartBikeGuardApp());
 }
 
@@ -37,9 +35,8 @@ class SmartBikeGuardApp extends StatelessWidget {
       child: MultiBlocProvider(
         providers: [
           BlocProvider(
-            create: (context) => AuthCubit(
-              authService: context.read<FirebaseAuthService>(),
-            ),
+            create: (context) =>
+                AuthCubit(authService: context.read<FirebaseAuthService>()),
           ),
           BlocProvider(
             create: (context) => AppCubit(
