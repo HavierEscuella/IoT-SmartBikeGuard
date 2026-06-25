@@ -72,7 +72,30 @@ class _CommandInputState extends State<CommandInput> {
           style: TextStyle(color: Colors.grey, fontSize: 10),
           textAlign: TextAlign.center,
         ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildQuickButton('🔒 ARM', const Color(0xFF2196F3), 'ARM'),
+            _buildQuickButton('🔓 DISARM', const Color(0xFF4CAF50), 'DISARM'),
+            _buildQuickButton('🚨 SOS', const Color(0xFFF44336), 'SOS'),
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _buildQuickButton(String label, Color color, String command) {
+    return ElevatedButton(
+      onPressed: () => widget.onCommandSubmitted(command),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color.withValues(alpha: 0.2),
+        foregroundColor: color,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }
 }
