@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smart_bike_flashlight/smart_bike_flashlight.dart';
 
 class FlashlightCubit extends Cubit<bool> {
@@ -22,7 +23,7 @@ class FlashlightCubit extends Cubit<bool> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => context.pop(),
                 child: const Text('OK'),
               ),
             ],

@@ -1,19 +1,25 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:smart_bike_flashlight/smart_bike_flashlight.dart';
 import 'package:smart_bike_guard/core/cubit/app_cubit.dart';
 import 'package:smart_bike_guard/core/cubit/app_state.dart';
+import 'package:smart_bike_guard/core/services/notification_service.dart';
 import 'package:smart_bike_guard/features/alarm/presentation/cubit/alarm_state.dart';
-import 'package:smart_bike_guard/features/profile/data/services/local_storage_service.dart';
 
 class AlarmCubit extends Cubit<AlarmState> {
-  final LocalStorageService localStorage;
   final AppCubit appCubit;
+  Timer? _flashlightTimer;
+  bool _isFlashlightOn = false;
 
-  AlarmCubit({required this.localStorage, required this.appCubit})
+  AlarmCubit({required this.appCubit})
     : super(AlarmState.initial());
 
   void handleCommand(String input, double sensitivity) {
     final command = input.trim();
     if (command == 'ARM') {
+      _stopFlashlightBlinking();
       emit(
         state.copyWith(
           isArmed: true,
@@ -22,6 +28,7 @@ class AlarmCubit extends Cubit<AlarmState> {
         ),
       );
     } else if (command == 'DISARM') {
+      _stopFlashlightBlinking();
       emit(
         state.copyWith(
           isArmed: false,
@@ -55,10 +62,11 @@ class AlarmCubit extends Cubit<AlarmState> {
     final currentApp = appCubit.state;
     if (currentApp is! AppLoaded) return;
 
-    final newCount = currentApp.data.alertCount + 1;
-    await localStorage.saveAlertCount(newCount);
+    await appCubit.incrementAlertCount();
 
-    appCubit.updateData(currentApp.data.copyWith(alertCount: newCount));
+    HapticFeedback.vibrate();
+    NotificationService().showAlarmNotification(reason);
+    _startFlashlightBlinking();
 
     emit(
       state.copyWith(
@@ -66,5 +74,29 @@ class AlarmCubit extends Cubit<AlarmState> {
         statusMessage: '🚨 ТРИВОГА! $reason',
       ),
     );
+  }
+
+  void _startFlashlightBlinking() {
+    _flashlightTimer?.cancel();
+    _isFlashlightOn = true;
+    try { SmartBikeFlashlight.toggleTorch(_isFlashlightOn); } catch (_) {}
+    
+    _flashlightTimer = Timer.periodic(const Duration(milliseconds: 250), (timer) {
+      _isFlashlightOn = !_isFlashlightOn;
+      try { SmartBikeFlashlight.toggleTorch(_isFlashlightOn); } catch (_) {}
+    });
+  }
+
+  void _stopFlashlightBlinking() {
+    _flashlightTimer?.cancel();
+    _flashlightTimer = null;
+    _isFlashlightOn = false;
+    try { SmartBikeFlashlight.toggleTorch(false); } catch (_) {}
+  }
+
+  @override
+  Future<void> close() {
+    _stopFlashlightBlinking();
+    return super.close();
   }
 }

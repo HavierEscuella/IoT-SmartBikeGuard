@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smart_bike_guard/core/cubit/app_cubit.dart';
 import 'package:smart_bike_guard/core/cubit/app_state.dart';
 import 'package:smart_bike_guard/features/alarm/presentation/cubit/alarm_cubit.dart';
@@ -8,8 +9,6 @@ import 'package:smart_bike_guard/features/alarm/presentation/cubit/flashlight_cu
 import 'package:smart_bike_guard/features/alarm/presentation/widgets/alarm_indicator.dart';
 import 'package:smart_bike_guard/features/alarm/presentation/widgets/command_input.dart';
 import 'package:smart_bike_guard/features/alarm/presentation/widgets/status_header.dart';
-import 'package:smart_bike_guard/features/profile/data/services/local_storage_service.dart';
-import 'package:smart_bike_guard/features/profile/presentation/screens/profile_settings_screen.dart';
 
 class AlarmKeychainScreen extends StatelessWidget {
   const AlarmKeychainScreen({super.key});
@@ -20,7 +19,6 @@ class AlarmKeychainScreen extends StatelessWidget {
       providers: [
         BlocProvider(
           create: (context) => AlarmCubit(
-            localStorage: context.read<LocalStorageService>(),
             appCubit: context.read<AppCubit>(),
           ),
         ),
@@ -78,12 +76,7 @@ class _AlarmView extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.settings),
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const ProfileSettingsScreen(),
-                    ),
-                  );
+                  context.push('/settings');
                 },
               ),
             ],

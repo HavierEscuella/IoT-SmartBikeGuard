@@ -1,70 +1,50 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:smart_bike_guard/core/cubit/app_state.dart';
 import 'package:smart_bike_guard/core/models/bike_data.dart';
-import 'package:smart_bike_guard/features/profile/data/services/bike_api_service.dart';
-import 'package:smart_bike_guard/features/profile/data/services/local_storage_service.dart';
+import 'package:smart_bike_guard/features/auth/data/services/firebase_auth_service.dart';
+import 'package:smart_bike_guard/features/profile/data/services/firebase_firestore_service.dart';
 
 class AppCubit extends Cubit<AppState> {
-  final BikeApiService apiService;
-  final LocalStorageService localStorage;
+  final FirebaseFirestoreService firestoreService;
+  final FirebaseAuthService authService;
+  StreamSubscription<BikeData>? _bikeDataSubscription;
 
-  AppCubit({required this.apiService, required this.localStorage})
+  AppCubit({required this.firestoreService, required this.authService})
     : super(AppInitial());
 
   Future<void> loadInitialData() async {
     emit(AppLoading());
+    final user = authService.currentUser;
+    if (user == null) {
+      emit(const AppError('Користувач не авторизований'));
+      return;
+    }
 
-    int alertCount = 0;
-    try {
-      alertCount = await localStorage.getAlertCount();
-    } catch (_) {}
+    _bikeDataSubscription?.cancel();
+    _bikeDataSubscription = firestoreService.streamBikeData(user.uid).listen(
+      (data) {
+        emit(AppLoaded(data));
+      },
+      onError: (Object e) {
+        emit(AppError(e.toString()));
+      },
+    );
+  }
 
-    try {
-      final cached = await localStorage.getBikeData();
-      if (cached != null) {
-        apiService
-            .fetchBikeData()
-            .then(localStorage.saveBikeData)
-            .catchError((_) {});
+  Future<void> incrementAlertCount() async {
+    final user = authService.currentUser;
+    if (user == null) return;
 
-        final cachedData = BikeData(
-          ownerName: cached['ownerName'] as String,
-          ownerPhone: cached['ownerPhone'] as String,
-          bikeName: cached['bikeName'] as String,
-          bikeType: cached['bikeType'] as String,
-          serialNumber: cached['serialNumber'] as String,
-          sensitivity: cached['sensitivity'] as double,
-          alertCount: alertCount,
-          isOfflineMode: true,
-        );
-
-        emit(AppLoaded(cachedData));
-        return;
-      }
-    } catch (_) {}
-
-    try {
-      final serverData = await apiService.fetchBikeData();
-      await localStorage.saveBikeData(serverData);
-
-      final data = BikeData(
-        ownerName: serverData['ownerName'] as String? ?? 'Власник',
-        ownerPhone: serverData['ownerPhone'] as String? ?? '',
-        bikeName: serverData['bikeName'] as String? ?? 'Байк',
-        bikeType: serverData['bikeType'] as String? ?? 'Велосипед',
-        serialNumber: serverData['serialNumber'] as String? ?? '',
-        sensitivity: (serverData['sensitivity'] as num? ?? 0.5).toDouble(),
-        alertCount: alertCount,
-        isOfflineMode: false,
-      );
-
-      emit(AppLoaded(data));
-    } catch (e) {
-      emit(AppError(e.toString()));
+    if (state is AppLoaded) {
+      final currentCount = (state as AppLoaded).data.alertCount;
+      await firestoreService.updateAlertCount(user.uid, currentCount + 1);
     }
   }
 
-  void updateData(BikeData newData) {
-    emit(AppLoaded(newData));
+  @override
+  Future<void> close() {
+    _bikeDataSubscription?.cancel();
+    return super.close();
   }
 }
